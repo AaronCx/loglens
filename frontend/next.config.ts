@@ -1,11 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  output: 'export',
-  basePath: '/loglens',
-  images: {
-    unoptimized: true,
-  },
+  // No static export — Vercel handles SSR natively
 };
 
 export default nextConfig;
