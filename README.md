@@ -2,7 +2,7 @@
 
 A real-time error logging and monitoring platform.
 
-**Live:** [Dashboard](https://frontend-lake-zeta-61.vercel.app) | [API](https://loglens-api.onrender.com/docs) | [Health](https://loglens-api.onrender.com/health)
+**Live:** [Dashboard](https://loglens-app.vercel.app) | [API](https://loglens-api.onrender.com/docs) | [Health](https://loglens-api.onrender.com/health)
 
 - **Backend** — FastAPI + SQLAlchemy + Postgres/Supabase, Server-Sent Events for push
 - **Frontend** — Next.js 15, Tailwind CSS, Recharts, live SSE dashboard
@@ -185,7 +185,7 @@ data: {"type": "ping"}
 
 | Component | Platform | URL |
 |-----------|----------|-----|
-| Frontend  | Vercel   | https://frontend-lake-zeta-61.vercel.app |
+| Frontend  | Vercel   | https://loglens-app.vercel.app |
 | Backend   | Render   | https://loglens-api.onrender.com |
 | Database  | Supabase | Postgres 17 (us-west-2) |
 
