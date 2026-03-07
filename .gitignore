@@ -27,3 +27,6 @@ npm-debug.log*
 .pytest_cache/
 htmlcov/
 .coverage
+
+# IDE config
+.claude/
