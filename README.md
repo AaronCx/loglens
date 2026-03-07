@@ -2,6 +2,8 @@
 
 A real-time error logging and monitoring platform.
 
+**Live:** [Dashboard](https://frontend-lake-zeta-61.vercel.app) | [API](https://loglens-api.onrender.com/docs) | [Health](https://loglens-api.onrender.com/health)
+
 - **Backend** — FastAPI + SQLAlchemy + Postgres/Supabase, Server-Sent Events for push
 - **Frontend** — Next.js 15, Tailwind CSS, Recharts, live SSE dashboard
 - **SDK** — `loglens-sdk` Python package with a `capture()` API
@@ -179,25 +181,21 @@ data: {"type": "ping"}
 
 ---
 
-## Deploying to production
+## Production deployment
 
-### Backend (Railway / Render / Fly.io)
+| Component | Platform | URL |
+|-----------|----------|-----|
+| Frontend  | Vercel   | https://frontend-lake-zeta-61.vercel.app |
+| Backend   | Render   | https://loglens-api.onrender.com |
+| Database  | Supabase | Postgres 17 (us-west-2) |
 
-```bash
-pip install -r requirements.txt
-uvicorn main:app --host 0.0.0.0 --port $PORT
-```
+### Backend (Render)
 
-Set `DATABASE_URL`, `API_KEY`, and `ALLOWED_ORIGINS` as environment variables.
+Configured via `render.yaml`. Set `DATABASE_URL`, `API_KEY`, and `ALLOWED_ORIGINS` as env vars.
 
 ### Frontend (Vercel)
 
-```bash
-cd frontend
-vercel deploy
-```
-
-Set `NEXT_PUBLIC_API_URL` to your deployed backend URL.
+Root directory: `frontend/`. Set `NEXT_PUBLIC_API_URL` to the backend URL.
 
 ---
 
