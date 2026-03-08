@@ -35,6 +35,7 @@ export default function Dashboard() {
   const [stats, setStats] = useState<Stats | null>(null);
   const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
   const [activeSeverities, setActiveSeverities] = useState<Set<Severity>>(new Set());
+  const [environment, setEnvironment] = useState("");
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [page, setPage] = useState(1);
@@ -57,7 +58,13 @@ export default function Dashboard() {
     setLoading(true);
     try {
       const severityList = activeSeverities.size > 0 ? Array.from(activeSeverities) : undefined;
-      const result = await fetchEvents({ severity: severityList, search: debouncedSearch || undefined, page, pageSize: PAGE_SIZE });
+      const result = await fetchEvents({
+        severity: severityList,
+        search: debouncedSearch || undefined,
+        environment: environment || undefined,
+        page,
+        pageSize: PAGE_SIZE,
+      });
       setEvents(result.events);
       setTotal(result.total);
     } catch (err) {
@@ -65,7 +72,7 @@ export default function Dashboard() {
     } finally {
       setLoading(false);
     }
-  }, [activeSeverities, debouncedSearch, page]);
+  }, [activeSeverities, debouncedSearch, environment, page]);
 
   const loadStats = useCallback(async () => {
     try {
@@ -110,10 +117,10 @@ export default function Dashboard() {
     setPage(1);
   };
 
-  const clearFilters = () => { setActiveSeverities(new Set()); setSearch(""); setPage(1); };
+  const clearFilters = () => { setActiveSeverities(new Set()); setSearch(""); setEnvironment(""); setPage(1); };
 
   const totalPages = Math.ceil(total / PAGE_SIZE);
-  const hasFilters = activeSeverities.size > 0 || debouncedSearch;
+  const hasFilters = activeSeverities.size > 0 || debouncedSearch || environment;
 
   return (
     <div className="min-h-screen bg-gray-950 text-gray-100">
@@ -187,6 +194,17 @@ export default function Dashboard() {
               </button>
             ))}
             <div className="ml-auto flex items-center gap-2">
+              <select
+                value={environment}
+                onChange={(e) => { setEnvironment(e.target.value); setPage(1); }}
+                className="rounded-md border border-gray-700 bg-gray-800 px-2 py-1.5 text-sm text-gray-300 focus:outline-none focus:border-indigo-500"
+              >
+                <option value="">All Envs</option>
+                <option value="production">Production</option>
+                <option value="staging">Staging</option>
+                <option value="development">Development</option>
+                <option value="testing">Testing</option>
+              </select>
               <div className="relative">
                 <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-gray-500" />
                 <input

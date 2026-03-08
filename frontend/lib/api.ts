@@ -11,6 +11,7 @@ async function get<T>(path: string): Promise<T> {
 interface FetchEventsParams {
   severity?: Severity[];
   search?: string;
+  environment?: string;
   page?: number;
   pageSize?: number;
 }
@@ -19,6 +20,7 @@ export async function fetchEvents(params: FetchEventsParams = {}): Promise<Event
   const qs = new URLSearchParams();
   if (params.severity?.length) params.severity.forEach((s) => qs.append("severity", s));
   if (params.search) qs.set("search", params.search);
+  if (params.environment) qs.set("environment", params.environment);
   if (params.page) qs.set("page", String(params.page));
   if (params.pageSize) qs.set("page_size", String(params.pageSize));
 
