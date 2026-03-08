@@ -12,7 +12,7 @@ from slowapi import Limiter
 from slowapi.util import get_remote_address
 
 from database import get_db
-from models import Event, Severity
+from models import Event, Severity, ApiKey
 from .stream import broadcast_event
 
 router = APIRouter()
@@ -21,7 +21,27 @@ limiter = Limiter(key_func=get_remote_address)
 API_KEY = os.getenv("API_KEY", "dev-secret-key")
 
 
+async def resolve_api_key(
+    x_api_key: str = Header(..., alias="X-API-Key"),
+    db: AsyncSession = Depends(get_db),
+) -> tuple[str, uuid.UUID | None]:
+    """Verify API key. Supports both legacy global key and project-scoped keys."""
+    if x_api_key == API_KEY:
+        return x_api_key, None
+
+    # Check project-scoped keys
+    result = await db.execute(
+        select(ApiKey).where(ApiKey.key == x_api_key, ApiKey.is_active == True)
+    )
+    api_key = result.scalar_one_or_none()
+    if api_key:
+        return x_api_key, api_key.project_id
+
+    raise HTTPException(status_code=401, detail="Invalid API key")
+
+
 def verify_api_key(x_api_key: str = Header(..., alias="X-API-Key")):
+    """Simple API key check for non-project-scoped endpoints."""
     if x_api_key != API_KEY:
         raise HTTPException(status_code=401, detail="Invalid API key")
     return x_api_key
@@ -109,8 +129,9 @@ async def create_event(
     request: Request,
     event: EventCreate,
     db: AsyncSession = Depends(get_db),
-    _: str = Depends(verify_api_key),
+    auth: tuple = Depends(resolve_api_key),
 ):
+    _, project_id = auth
     db_event = Event(
         id=uuid.uuid4(),
         timestamp=event.timestamp or datetime.now(timezone.utc),
@@ -120,6 +141,7 @@ async def create_event(
         stack_trace=event.stack_trace,
         metadata_=event.metadata or {},
         environment=event.environment or "production",
+        project_id=project_id,
     )
     db.add(db_event)
     await db.flush()

@@ -13,7 +13,7 @@ from slowapi.errors import RateLimitExceeded
 load_dotenv()
 
 from database import init_db, check_db, AsyncSessionLocal
-from routers import events_router, stream_router
+from routers import events_router, stream_router, projects_router
 
 logger = logging.getLogger("loglens")
 
@@ -85,6 +85,7 @@ app.add_middleware(
 
 app.include_router(events_router, tags=["Events"])
 app.include_router(stream_router, tags=["Stream"])
+app.include_router(projects_router)
 
 
 @app.get("/health")

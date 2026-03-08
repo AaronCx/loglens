@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Text, DateTime, Enum, JSON, Index
+from sqlalchemy import Column, String, Text, DateTime, Enum, JSON, Index, ForeignKey
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.ext.declarative import declarative_base
 from datetime import datetime, timezone
@@ -26,6 +26,7 @@ class Event(Base):
     stack_trace = Column(Text, nullable=True)
     metadata_ = Column("metadata", JSON, nullable=True, default=dict)
     environment = Column(String(64), nullable=True, default="production", index=True)
+    project_id = Column(UUID(as_uuid=True), ForeignKey("projects.id", ondelete="CASCADE"), nullable=True, index=True)
 
     __table_args__ = (
         Index("ix_events_timestamp", "timestamp"),
