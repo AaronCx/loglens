@@ -2,6 +2,8 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from contextlib import asynccontextmanager
+import asyncio
+import logging
 import os
 from dotenv import load_dotenv
 from slowapi import Limiter
@@ -10,18 +12,46 @@ from slowapi.errors import RateLimitExceeded
 
 load_dotenv()
 
-from database import init_db, check_db
+from database import init_db, check_db, AsyncSessionLocal
 from routers import events_router, stream_router
+
+logger = logging.getLogger("loglens")
 
 RATE_LIMIT = os.getenv("RATE_LIMIT", "100/minute")
 
 limiter = Limiter(key_func=get_remote_address, default_limits=[RATE_LIMIT])
 
 
+RETENTION_DAYS = int(os.getenv("RETENTION_DAYS", "30"))
+CLEANUP_INTERVAL_HOURS = int(os.getenv("CLEANUP_INTERVAL_HOURS", "6"))
+
+
+async def _periodic_cleanup():
+    from sqlalchemy import delete, text
+    from models import Event
+
+    while True:
+        await asyncio.sleep(CLEANUP_INTERVAL_HOURS * 3600)
+        try:
+            async with AsyncSessionLocal() as session:
+                cutoff = text("NOW() - make_interval(days => :days)")
+                result = await session.execute(
+                    delete(Event).where(Event.timestamp < cutoff),
+                    {"days": RETENTION_DAYS},
+                )
+                await session.commit()
+                if result.rowcount > 0:
+                    logger.info("Retention cleanup: deleted %d expired events", result.rowcount)
+        except Exception as exc:
+            logger.warning("Retention cleanup failed: %s", exc)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await init_db()
+    cleanup_task = asyncio.create_task(_periodic_cleanup())
     yield
+    cleanup_task.cancel()
 
 
 app = FastAPI(

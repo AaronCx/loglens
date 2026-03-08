@@ -252,6 +252,21 @@ async def delete_event(
     await db.delete(event)
 
 
+RETENTION_DAYS = int(os.getenv("RETENTION_DAYS", "30"))
+
+
+@router.delete("/events/expired", status_code=200)
+async def cleanup_expired_events(
+    db: AsyncSession = Depends(get_db),
+    _: str = Depends(verify_api_key),
+):
+    from sqlalchemy import delete, text
+    cutoff = text(f"NOW() - make_interval(days => :days)")
+    stmt = delete(Event).where(Event.timestamp < cutoff)
+    result = await db.execute(stmt, {"days": RETENTION_DAYS})
+    return {"deleted": result.rowcount, "retention_days": RETENTION_DAYS}
+
+
 @router.delete("/events", status_code=204)
 async def clear_events(
     db: AsyncSession = Depends(get_db),
