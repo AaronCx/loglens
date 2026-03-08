@@ -4,7 +4,7 @@ import { X, Copy, Check, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { format } from "date-fns";
 import { Event } from "@/lib/types";
-import { deleteEvent } from "@/lib/api";
+
 import SeverityBadge from "./SeverityBadge";
 
 interface Props {

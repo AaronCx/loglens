@@ -76,21 +76,21 @@ export default function Dashboard() {
       });
       setEvents(result.events);
       setTotal(result.total);
-    } catch (err) {
+    } catch {
       addToast("error", "Failed to load events. Check your connection.");
     } finally {
       setLoading(false);
     }
-  }, [activeSeverities, debouncedSearch, environment, page]);
+  }, [activeSeverities, debouncedSearch, environment, page, addToast]);
 
   const loadStats = useCallback(async () => {
     try {
       const s = await fetchStats();
       setStats(s);
-    } catch (err) {
+    } catch {
       addToast("error", "Failed to load stats.");
     }
-  }, []);
+  }, [addToast]);
 
   useEffect(() => { loadEvents(); loadStats(); }, [loadEvents, loadStats]);
 
