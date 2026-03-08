@@ -24,19 +24,30 @@ def verify_api_key(x_api_key: str = Header(..., alias="X-API-Key")):
     return x_api_key
 
 
+MAX_METADATA_SIZE = 65_536  # 64 KB
+
 class EventCreate(BaseModel):
     severity: Severity
     service: str = Field(..., min_length=1, max_length=255)
-    message: str = Field(..., min_length=1)
-    stack_trace: Optional[str] = None
+    message: str = Field(..., min_length=1, max_length=10_000)
+    stack_trace: Optional[str] = Field(None, max_length=100_000)
     metadata: Optional[dict[str, Any]] = None
-    environment: Optional[str] = "production"
+    environment: Optional[str] = Field("production", max_length=64)
     timestamp: Optional[datetime] = None
 
     @field_validator("timestamp", mode="before")
     @classmethod
     def set_timestamp(cls, v):
         return v or datetime.now(timezone.utc)
+
+    @field_validator("metadata", mode="before")
+    @classmethod
+    def validate_metadata_size(cls, v):
+        if v is not None:
+            import json
+            if len(json.dumps(v)) > MAX_METADATA_SIZE:
+                raise ValueError(f"metadata must be smaller than {MAX_METADATA_SIZE} bytes")
+        return v
 
 
 class EventResponse(BaseModel):
@@ -197,24 +208,12 @@ async def get_timeseries(
             severity,
             COUNT(*) AS cnt
         FROM events
-        WHERE timestamp >= NOW() - INTERVAL ':hours hours'
-        GROUP BY hour, severity
-        ORDER BY hour
-    """).bindparams(hours=hours)
-
-    # Use a safer approach with literal string interpolation for interval
-    sql = text(f"""
-        SELECT
-            date_trunc('hour', timestamp) AS hour,
-            severity,
-            COUNT(*) AS cnt
-        FROM events
-        WHERE timestamp >= NOW() - INTERVAL '{hours} hours'
+        WHERE timestamp >= NOW() - make_interval(hours => :hours)
         GROUP BY hour, severity
         ORDER BY hour
     """)
 
-    result = await db.execute(sql)
+    result = await db.execute(sql, {"hours": hours})
     rows = result.all()
 
     buckets: dict[str, dict[str, int]] = {}
