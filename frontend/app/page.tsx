@@ -55,7 +55,7 @@ export default function Dashboard() {
   }, []);
 
   const PAGE_SIZE = 50;
-  const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+  const API_URL = "/api";
 
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);

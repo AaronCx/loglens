@@ -1,6 +1,7 @@
 import { EventsListResponse, Stats, TimeSeriesPoint, Severity } from "./types";
 
-const BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+// Use /api proxy in production to avoid CORS, direct URL in dev
+const BASE = typeof window !== "undefined" ? "/api" : (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000");
 
 async function get<T>(path: string): Promise<T> {
   const res = await fetch(`${BASE}${path}`, { cache: "no-store" });
@@ -37,7 +38,8 @@ export async function fetchTimeSeries(hours = 24): Promise<TimeSeriesPoint[]> {
 }
 
 export async function deleteEvent(eventId: string, apiKey: string): Promise<void> {
-  const res = await fetch(`${BASE}/events/${eventId}`, {
+  const base = typeof window !== "undefined" ? "/api" : (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000");
+  const res = await fetch(`${base}/events/${eventId}`, {
     method: "DELETE",
     headers: { "X-API-Key": apiKey },
   });
