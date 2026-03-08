@@ -6,7 +6,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-from database import init_db
+from database import init_db, check_db
 from routers import events_router, stream_router
 
 
@@ -39,7 +39,9 @@ app.include_router(stream_router, tags=["Stream"])
 
 @app.get("/health")
 async def health():
-    return {"status": "ok", "service": "loglens-api"}
+    db_ok = await check_db()
+    status = "ok" if db_ok else "degraded"
+    return {"status": status, "service": "loglens-api", "database": "connected" if db_ok else "unreachable"}
 
 
 @app.get("/")
