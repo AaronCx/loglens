@@ -18,6 +18,7 @@ import StackTraceViewer from "@/components/StackTraceViewer";
 import ErrorsOverTimeChart from "@/components/ErrorsOverTimeChart";
 import ErrorsByServiceChart from "@/components/ErrorsByServiceChart";
 import StatsCard from "@/components/StatsCard";
+import ToastContainer, { ToastMessage, createToast } from "@/components/Toast";
 import { Event, Severity, Stats } from "@/lib/types";
 import { fetchEvents, fetchStats, deleteEvent } from "@/lib/api";
 
@@ -43,7 +44,15 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(false);
   const [liveCount, setLiveCount] = useState(0);
   const [isConnected, setIsConnected] = useState(false);
+  const [toasts, setToasts] = useState<ToastMessage[]>([]);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const addToast = useCallback((type: ToastMessage["type"], message: string) => {
+    setToasts((prev) => [...prev.slice(-4), createToast(type, message)]);
+  }, []);
+  const dismissToast = useCallback((id: string) => {
+    setToasts((prev) => prev.filter((t) => t.id !== id));
+  }, []);
 
   const PAGE_SIZE = 50;
   const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
@@ -68,7 +77,7 @@ export default function Dashboard() {
       setEvents(result.events);
       setTotal(result.total);
     } catch (err) {
-      console.error("Failed to load events:", err);
+      addToast("error", "Failed to load events. Check your connection.");
     } finally {
       setLoading(false);
     }
@@ -79,7 +88,7 @@ export default function Dashboard() {
       const s = await fetchStats();
       setStats(s);
     } catch (err) {
-      console.error("Failed to load stats:", err);
+      addToast("error", "Failed to load stats.");
     }
   }, []);
 
@@ -103,7 +112,12 @@ export default function Dashboard() {
         }
       } catch { /* ignore parse errors */ }
     };
-    es.onerror = () => setIsConnected(false);
+    es.onerror = () => {
+      if (es.readyState === EventSource.CLOSED) {
+        addToast("warning", "Live connection lost. Click Refresh to reconnect.");
+      }
+      setIsConnected(false);
+    };
     return () => { es.close(); setIsConnected(false); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [API_URL]);
@@ -316,12 +330,14 @@ export default function Dashboard() {
               setEvents((prev) => prev.filter((e) => e.id !== eventId));
               setTotal((t) => Math.max(0, t - 1));
               loadStats();
-            } catch (err) {
-              console.error("Failed to delete event:", err);
+              addToast("success", "Event deleted successfully.");
+            } catch {
+              addToast("error", "Failed to delete event. Check your API key.");
             }
           }}
         />
       )}
+      <ToastContainer toasts={toasts} onDismiss={dismissToast} />
     </div>
   );
 }
