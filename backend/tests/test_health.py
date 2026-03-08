@@ -16,8 +16,9 @@ async def test_health_endpoint():
         resp = await client.get("/health")
     assert resp.status_code == 200
     data = resp.json()
-    assert data["status"] == "ok"
+    assert data["status"] in ("ok", "degraded")
     assert data["service"] == "loglens-api"
+    assert "database" in data
 
 
 @pytest.mark.anyio
