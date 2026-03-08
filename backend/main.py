@@ -3,19 +3,23 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from contextlib import asynccontextmanager
 import asyncio
-import logging
 import os
+import time
 from dotenv import load_dotenv
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
+import structlog
 
 load_dotenv()
+
+from logging_config import setup_logging
+setup_logging()
 
 from database import init_db, check_db, AsyncSessionLocal
 from routers import events_router, stream_router, projects_router, webhooks_router
 
-logger = logging.getLogger("loglens")
+logger = structlog.get_logger("loglens")
 
 RATE_LIMIT = os.getenv("RATE_LIMIT", "100/minute")
 
@@ -82,6 +86,22 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+@app.middleware("http")
+async def log_requests(request: Request, call_next):
+    start = time.perf_counter()
+    response = await call_next(request)
+    duration_ms = round((time.perf_counter() - start) * 1000, 1)
+    if request.url.path not in ("/health", "/stream"):
+        logger.info(
+            "request",
+            method=request.method,
+            path=request.url.path,
+            status=response.status_code,
+            duration_ms=duration_ms,
+        )
+    return response
+
 
 app.include_router(events_router, tags=["Events"])
 app.include_router(stream_router, tags=["Stream"])
