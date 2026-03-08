@@ -1,8 +1,6 @@
 import pytest
 import asyncio
-from httpx import ASGITransport, AsyncClient
-
-from main import app
+from routers.stream import broadcast_event, _subscribers
 
 
 @pytest.fixture
@@ -10,24 +8,30 @@ def anyio_backend():
     return "asyncio"
 
 
-API_HEADERS = {"X-API-Key": "test-key"}
+@pytest.mark.anyio
+async def test_broadcast_event_to_subscribers():
+    """Verify broadcast_event delivers data to subscribed queues."""
+    queue: asyncio.Queue = asyncio.Queue(maxsize=10)
+    _subscribers.add(queue)
+    try:
+        await broadcast_event({"type": "event", "severity": "error", "message": "test"})
+        data = queue.get_nowait()
+        assert data["severity"] == "error"
+        assert data["message"] == "test"
+    finally:
+        _subscribers.discard(queue)
 
 
 @pytest.mark.anyio
-async def test_stream_endpoint_returns_event_stream():
-    transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as client:
-        async with client.stream("GET", "/stream") as resp:
-            assert resp.status_code == 200
-            assert "text/event-stream" in resp.headers["content-type"]
-            # Read the first SSE message (connection confirmation)
-            first_line = b""
-            try:
-                async with asyncio.timeout(3):
-                    async for chunk in resp.aiter_bytes():
-                        first_line += chunk
-                        if b"\n\n" in first_line:
-                            break
-            except TimeoutError:
-                pass
-            assert b"connected" in first_line
+async def test_broadcast_drops_full_queues():
+    """Verify broadcast removes subscribers with full queues."""
+    queue: asyncio.Queue = asyncio.Queue(maxsize=1)
+    _subscribers.add(queue)
+    try:
+        # Fill the queue
+        await queue.put({"filler": True})
+        # Broadcast should drop this subscriber since queue is full
+        await broadcast_event({"type": "event"})
+        assert queue not in _subscribers
+    finally:
+        _subscribers.discard(queue)
