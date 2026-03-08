@@ -4,15 +4,16 @@ from httpx import ASGITransport, AsyncClient
 from main import app
 
 
-@pytest.fixture
-def anyio_backend():
-    return "asyncio"
+def make_client():
+    return AsyncClient(
+        transport=ASGITransport(app=app, raise_server_exceptions=False),
+        base_url="http://test",
+    )
 
 
 @pytest.mark.anyio
 async def test_health_endpoint():
-    transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as client:
+    async with make_client() as client:
         resp = await client.get("/health")
     assert resp.status_code == 200
     data = resp.json()
@@ -23,8 +24,7 @@ async def test_health_endpoint():
 
 @pytest.mark.anyio
 async def test_root_endpoint():
-    transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as client:
+    async with make_client() as client:
         resp = await client.get("/")
     assert resp.status_code == 200
     data = resp.json()

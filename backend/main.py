@@ -90,7 +90,12 @@ app.add_middleware(
 @app.middleware("http")
 async def log_requests(request: Request, call_next):
     start = time.perf_counter()
-    response = await call_next(request)
+    try:
+        response = await call_next(request)
+    except Exception:
+        duration_ms = round((time.perf_counter() - start) * 1000, 1)
+        logger.error("request", method=request.method, path=request.url.path, status=500, duration_ms=duration_ms)
+        raise
     duration_ms = round((time.perf_counter() - start) * 1000, 1)
     if request.url.path not in ("/health", "/stream"):
         logger.info(
