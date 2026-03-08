@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Query, Header
+from fastapi import APIRouter, Depends, HTTPException, Query, Header, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, desc
 from sqlalchemy.dialects.postgresql import insert as pg_insert
@@ -8,12 +8,15 @@ from datetime import datetime, timezone
 import uuid
 import os
 import asyncio
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 
 from database import get_db
 from models import Event, Severity
 from .stream import broadcast_event
 
 router = APIRouter()
+limiter = Limiter(key_func=get_remote_address)
 
 API_KEY = os.getenv("API_KEY", "dev-secret-key")
 
@@ -97,8 +100,13 @@ class TimeSeriesPoint(BaseModel):
     critical: int
 
 
+INGEST_RATE_LIMIT = os.getenv("INGEST_RATE_LIMIT", "200/minute")
+
+
 @router.post("/events", response_model=EventResponse, status_code=201)
+@limiter.limit(INGEST_RATE_LIMIT)
 async def create_event(
+    request: Request,
     event: EventCreate,
     db: AsyncSession = Depends(get_db),
     _: str = Depends(verify_api_key),
