@@ -6,7 +6,7 @@ from main import app
 
 def make_client():
     return AsyncClient(
-        transport=ASGITransport(app=app, raise_server_exceptions=False),
+        transport=ASGITransport(app=app),
         base_url="http://test",
     )
 

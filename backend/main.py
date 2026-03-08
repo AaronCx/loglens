@@ -87,25 +87,46 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-@app.middleware("http")
-async def log_requests(request: Request, call_next):
-    start = time.perf_counter()
-    try:
-        response = await call_next(request)
-    except Exception:
+class LogRequestsMiddleware:
+    """Pure ASGI middleware for request logging (avoids BaseHTTPMiddleware ExceptionGroup issues)."""
+
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+
+        request = Request(scope)
+        start = time.perf_counter()
+        status_code = 500
+
+        async def send_wrapper(message):
+            nonlocal status_code
+            if message["type"] == "http.response.start":
+                status_code = message["status"]
+            await send(message)
+
+        try:
+            await self.app(scope, receive, send_wrapper)
+        except Exception:
+            duration_ms = round((time.perf_counter() - start) * 1000, 1)
+            logger.error("request", method=request.method, path=request.url.path, status=500, duration_ms=duration_ms)
+            raise
+
         duration_ms = round((time.perf_counter() - start) * 1000, 1)
-        logger.error("request", method=request.method, path=request.url.path, status=500, duration_ms=duration_ms)
-        raise
-    duration_ms = round((time.perf_counter() - start) * 1000, 1)
-    if request.url.path not in ("/health", "/stream"):
-        logger.info(
-            "request",
-            method=request.method,
-            path=request.url.path,
-            status=response.status_code,
-            duration_ms=duration_ms,
-        )
-    return response
+        if request.url.path not in ("/health", "/stream"):
+            logger.info(
+                "request",
+                method=request.method,
+                path=request.url.path,
+                status=status_code,
+                duration_ms=duration_ms,
+            )
+
+
+app.add_middleware(LogRequestsMiddleware)
 
 
 app.include_router(events_router, tags=["Events"])

@@ -28,6 +28,6 @@ async def _ensure_tables():
 @pytest.fixture
 async def client():
     """Shared async client with raise_server_exceptions=False for middleware compat."""
-    transport = ASGITransport(app=app, raise_server_exceptions=False)
+    transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as c:
         yield c
