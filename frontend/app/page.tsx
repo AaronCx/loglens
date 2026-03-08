@@ -19,7 +19,7 @@ import ErrorsOverTimeChart from "@/components/ErrorsOverTimeChart";
 import ErrorsByServiceChart from "@/components/ErrorsByServiceChart";
 import StatsCard from "@/components/StatsCard";
 import { Event, Severity, Stats } from "@/lib/types";
-import { fetchEvents, fetchStats } from "@/lib/api";
+import { fetchEvents, fetchStats, deleteEvent } from "@/lib/api";
 
 const SEVERITY_LABELS: Record<Severity, string> = {
   info: "Info",
@@ -303,7 +303,25 @@ export default function Dashboard() {
         </div>
       </main>
 
-      {selectedEvent && <StackTraceViewer event={selectedEvent} onClose={() => setSelectedEvent(null)} />}
+      {selectedEvent && (
+        <StackTraceViewer
+          event={selectedEvent}
+          onClose={() => setSelectedEvent(null)}
+          onDelete={async (eventId) => {
+            const apiKey = prompt("Enter API key to delete this event:");
+            if (!apiKey) return;
+            try {
+              await deleteEvent(eventId, apiKey);
+              setSelectedEvent(null);
+              setEvents((prev) => prev.filter((e) => e.id !== eventId));
+              setTotal((t) => Math.max(0, t - 1));
+              loadStats();
+            } catch (err) {
+              console.error("Failed to delete event:", err);
+            }
+          }}
+        />
+      )}
     </div>
   );
 }

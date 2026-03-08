@@ -1,18 +1,22 @@
 "use client";
 
-import { X, Copy, Check } from "lucide-react";
+import { X, Copy, Check, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { format } from "date-fns";
 import { Event } from "@/lib/types";
+import { deleteEvent } from "@/lib/api";
 import SeverityBadge from "./SeverityBadge";
 
 interface Props {
   event: Event;
   onClose: () => void;
+  onDelete?: (eventId: string) => void;
 }
 
-export default function StackTraceViewer({ event, onClose }: Props) {
+export default function StackTraceViewer({ event, onClose, onDelete }: Props) {
   const [copied, setCopied] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   const copy = async () => {
     const text = [
@@ -50,6 +54,37 @@ export default function StackTraceViewer({ event, onClose }: Props) {
               {copied ? <Check className="h-3.5 w-3.5 text-green-400" /> : <Copy className="h-3.5 w-3.5" />}
               {copied ? "Copied!" : "Copy"}
             </button>
+            {onDelete && (
+              confirmDelete ? (
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={async () => {
+                      setDeleting(true);
+                      onDelete(event.id);
+                      setConfirmDelete(false);
+                    }}
+                    disabled={deleting}
+                    className="flex items-center gap-1 rounded-md border border-red-700 bg-red-950 px-3 py-1.5 text-xs text-red-300 hover:bg-red-900 transition-colors disabled:opacity-50"
+                  >
+                    {deleting ? "Deleting…" : "Confirm"}
+                  </button>
+                  <button
+                    onClick={() => setConfirmDelete(false)}
+                    className="rounded-md border border-gray-700 bg-gray-800 px-2 py-1.5 text-xs hover:bg-gray-700 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              ) : (
+                <button
+                  onClick={() => setConfirmDelete(true)}
+                  className="flex items-center gap-1.5 rounded-md border border-gray-700 bg-gray-800 px-3 py-1.5 text-xs hover:bg-gray-700 hover:text-red-400 transition-colors"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                  Delete
+                </button>
+              )
+            )}
             <button
               onClick={onClose}
               className="rounded-md p-1.5 hover:bg-gray-800 transition-colors"

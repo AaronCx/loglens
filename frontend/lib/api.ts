@@ -35,3 +35,11 @@ export async function fetchStats(): Promise<Stats> {
 export async function fetchTimeSeries(hours = 24): Promise<TimeSeriesPoint[]> {
   return get<TimeSeriesPoint[]>(`/stats/timeseries?hours=${hours}`);
 }
+
+export async function deleteEvent(eventId: string, apiKey: string): Promise<void> {
+  const res = await fetch(`${BASE}/events/${eventId}`, {
+    method: "DELETE",
+    headers: { "X-API-Key": apiKey },
+  });
+  if (!res.ok) throw new Error(`API error ${res.status}: DELETE /events/${eventId}`);
+}

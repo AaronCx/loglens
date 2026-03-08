@@ -239,6 +239,19 @@ async def get_timeseries(
     ]
 
 
+@router.delete("/events/{event_id}", status_code=204)
+async def delete_event(
+    event_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    _: str = Depends(verify_api_key),
+):
+    result = await db.execute(select(Event).where(Event.id == event_id))
+    event = result.scalar_one_or_none()
+    if not event:
+        raise HTTPException(status_code=404, detail="Event not found")
+    await db.delete(event)
+
+
 @router.delete("/events", status_code=204)
 async def clear_events(
     db: AsyncSession = Depends(get_db),
