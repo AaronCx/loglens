@@ -5,7 +5,7 @@ A real-time error logging and monitoring platform.
 **Live:** [Dashboard](https://loglens-app.vercel.app) | [API](https://loglens-api.onrender.com/docs) | [Health](https://loglens-api.onrender.com/health)
 
 - **Backend** — FastAPI + SQLAlchemy + Postgres/Supabase, Server-Sent Events for push
-- **Frontend** — Next.js 15, Tailwind CSS, Recharts, live SSE dashboard
+- **Frontend** — Next.js 16, Tailwind CSS, Recharts, live SSE dashboard
 - **SDK** — `loglens-sdk` Python package with a `capture()` API
 
 ```
@@ -45,6 +45,10 @@ cp .env.example .env               # then edit .env
 | `DATABASE_URL` | SQLAlchemy async URL | `postgresql+asyncpg://user:pass@localhost/loglens` |
 | `API_KEY` | Secret key clients must send | `super-secret-key` |
 | `ALLOWED_ORIGINS` | CORS origins (comma-separated) | `http://localhost:3000` |
+| `RATE_LIMIT` | Default rate limit | `100/minute` |
+| `INGEST_RATE_LIMIT` | Event ingestion limit | `200/minute` |
+| `RETENTION_DAYS` | Auto-delete events older than N days | `30` |
+| `CLEANUP_INTERVAL_HOURS` | How often to run retention cleanup | `6` |
 
 #### Using Supabase
 
@@ -162,7 +166,33 @@ data: {"type": "event", "data": { ...event... }}
 data: {"type": "ping"}
 ```
 
+### `DELETE /events/{id}` — Delete a single event (requires API key)
+
 ### `DELETE /events` — Clear all events (requires API key)
+
+### `DELETE /events/expired` — Remove events past retention period
+
+### Projects & API Keys
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `POST` | `/projects` | Create a project |
+| `GET` | `/projects` | List all projects |
+| `GET` | `/projects/{id}` | Get project details |
+| `POST` | `/projects/{id}/keys` | Create project-scoped API key |
+| `GET` | `/projects/{id}/keys` | List API keys for a project |
+| `DELETE` | `/projects/{id}/keys/{key_id}` | Revoke API key |
+
+### Webhooks
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `POST` | `/webhooks` | Create webhook with severity/service filters |
+| `GET` | `/webhooks` | List all webhooks |
+| `PATCH` | `/webhooks/{id}` | Update webhook configuration |
+| `DELETE` | `/webhooks/{id}` | Delete webhook |
+
+Webhooks fire on event creation with HMAC-SHA256 signature verification (`X-LogLens-Signature` header) and support severity/service filtering.
 
 ---
 
@@ -172,7 +202,10 @@ data: {"type": "ping"}
 |---|---|
 | Real-time updates | New events appear instantly via SSE — no polling |
 | Severity filter | Toggle info / warning / error / critical |
+| Environment filter | Filter by production, staging, development, testing |
 | Full-text search | Filter by message content |
+| Event deletion | Delete individual events from the detail drawer |
+| Toast notifications | User-facing feedback for errors and actions |
 | Events over time | Stacked area chart, 24 h window, auto-refreshes |
 | Events by service | Horizontal bar chart, top 8 services |
 | Stack trace viewer | Slide-in drawer with syntax highlight, one-click copy |
