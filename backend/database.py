@@ -1,21 +1,29 @@
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
-from sqlalchemy import text
+from sqlalchemy.pool import NullPool
+from sqlalchemy import text, event
 import os
 from dotenv import load_dotenv
 
 load_dotenv()
 
 DATABASE_URL = os.getenv("DATABASE_URL", "postgresql+asyncpg://postgres:postgres@localhost:5432/loglens")
-POOL_SIZE = int(os.getenv("DB_POOL_SIZE", "1"))
-MAX_OVERFLOW = int(os.getenv("DB_MAX_OVERFLOW", "2"))
+
+is_supabase = "supabase.com" in DATABASE_URL or "supabase.co" in DATABASE_URL
+
+# Supabase pooler requires SSL; use unnamed prepared statements to avoid conflicts
+connect_args = {}
+if is_supabase:
+    connect_args["ssl"] = "require"
+    connect_args["statement_cache_size"] = 0
+    connect_args["prepared_statement_cache_size"] = 0
+    connect_args["prepared_statement_name_func"] = lambda: ""
 
 engine = create_async_engine(
     DATABASE_URL,
-    pool_size=POOL_SIZE,
-    max_overflow=MAX_OVERFLOW,
+    poolclass=NullPool if is_supabase else None,
     pool_pre_ping=True,
-    pool_recycle=60,
     echo=False,
+    connect_args=connect_args,
 )
 
 AsyncSessionLocal = async_sessionmaker(

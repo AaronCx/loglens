@@ -1,7 +1,6 @@
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from contextlib import asynccontextmanager
 import os
 import time
 from dotenv import load_dotenv
@@ -15,7 +14,7 @@ load_dotenv()
 from logging_config import setup_logging
 setup_logging()
 
-from database import init_db, check_db, AsyncSessionLocal
+from database import check_db, AsyncSessionLocal
 from routers import events_router, projects_router, webhooks_router
 
 logger = structlog.get_logger("loglens")
@@ -27,17 +26,10 @@ limiter = Limiter(key_func=get_remote_address, default_limits=[RATE_LIMIT])
 RETENTION_DAYS = int(os.getenv("RETENTION_DAYS", "30"))
 
 
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    await init_db()
-    yield
-
-
 app = FastAPI(
     title="LogLens API",
     description="Real-time error logging and monitoring API",
     version="1.0.0",
-    lifespan=lifespan,
 )
 
 app.state.limiter = limiter
