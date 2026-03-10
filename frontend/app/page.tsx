@@ -42,8 +42,7 @@ export default function Dashboard() {
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
-  const [liveCount, setLiveCount] = useState(0);
-  const [isConnected, setIsConnected] = useState(false);
+  const [isPolling, setIsPolling] = useState(false);
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -94,33 +93,15 @@ export default function Dashboard() {
 
   useEffect(() => { loadEvents(); loadStats(); }, [loadEvents, loadStats]);
 
+  // Poll for new events every 5 seconds
   useEffect(() => {
-    const es = new EventSource(`${API_URL}/stream`);
-    es.onopen = () => setIsConnected(true);
-    es.onmessage = (e) => {
-      try {
-        const msg = JSON.parse(e.data);
-        if (msg.type === "event") {
-          const newEvent: Event = msg.data;
-          setLiveCount((c) => c + 1);
-          setEvents((prev) => {
-            if (activeSeverities.size > 0 && !activeSeverities.has(newEvent.severity)) return prev;
-            return [newEvent, ...prev.slice(0, PAGE_SIZE - 1)];
-          });
-          setTotal((t) => t + 1);
-          loadStats();
-        }
-      } catch { /* ignore parse errors */ }
-    };
-    es.onerror = () => {
-      if (es.readyState === EventSource.CLOSED) {
-        addToast("warning", "Live connection lost. Click Refresh to reconnect.");
-      }
-      setIsConnected(false);
-    };
-    return () => { es.close(); setIsConnected(false); };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [API_URL]);
+    setIsPolling(true);
+    const interval = setInterval(() => {
+      loadEvents();
+      loadStats();
+    }, 5000);
+    return () => { clearInterval(interval); setIsPolling(false); };
+  }, [loadEvents, loadStats]);
 
   const toggleSeverity = (sev: Severity) => {
     setActiveSeverities((prev) => {
@@ -150,13 +131,10 @@ export default function Dashboard() {
             </div>
           </div>
           <div className="flex items-center gap-4">
-            <div className={`flex items-center gap-2 text-sm ${isConnected ? "text-green-400" : "text-gray-500"}`}>
-              <span className={`h-2 w-2 rounded-full ${isConnected ? "bg-green-400 animate-pulse" : "bg-gray-500"}`} />
-              {isConnected ? "Live" : "Connecting…"}
+            <div className={`flex items-center gap-2 text-sm ${isPolling ? "text-green-400" : "text-gray-500"}`}>
+              <span className={`h-2 w-2 rounded-full ${isPolling ? "bg-green-400 animate-pulse" : "bg-gray-500"}`} />
+              {isPolling ? "Auto-refresh" : "Paused"}
             </div>
-            {liveCount > 0 && (
-              <span className="rounded-full bg-indigo-600 px-2 py-0.5 text-xs font-medium">+{liveCount} live</span>
-            )}
             <button
               onClick={() => { loadEvents(); loadStats(); }}
               className="flex items-center gap-1.5 rounded-md border border-gray-700 bg-gray-800 px-3 py-1.5 text-sm hover:bg-gray-700 transition-colors"

@@ -2,15 +2,15 @@
 
 A real-time error logging and monitoring platform.
 
-**Live:** [Dashboard](https://loglens-app.vercel.app) | [API](https://loglens-api.onrender.com/docs) | [Health](https://loglens-api.onrender.com/health)
+**Live:** [Dashboard](https://loglens-app.vercel.app) | [API](https://loglens-api.vercel.app/docs) | [Health](https://loglens-api.vercel.app/health)
 
-- **Backend** — FastAPI + SQLAlchemy + Postgres/Supabase, Server-Sent Events for push
-- **Frontend** — Next.js 16, Tailwind CSS, Recharts, live SSE dashboard
+- **Backend** — FastAPI + SQLAlchemy + Postgres/Supabase, deployed as Vercel Serverless Functions
+- **Frontend** — Next.js 16, Tailwind CSS, Recharts, auto-refreshing dashboard
 - **SDK** — `loglens-sdk` Python package with a `capture()` API
 
 ```
 loglens/
-├── backend/       # FastAPI API
+├── backend/       # FastAPI API (Vercel Serverless)
 ├── frontend/      # Next.js dashboard
 └── sdk/           # loglens-sdk Python package
 ```
@@ -21,9 +21,10 @@ loglens/
 
 | Tool | Version |
 |---|---|
-| Python | ≥ 3.11 |
-| Node.js | ≥ 18 |
-| PostgreSQL | ≥ 14 (or Supabase project) |
+| Python | >= 3.11 |
+| Node.js | >= 18 |
+| PostgreSQL | >= 14 (or Supabase project) |
+| Vercel CLI | `npm i -g vercel` |
 
 ---
 
@@ -48,15 +49,15 @@ cp .env.example .env               # then edit .env
 | `RATE_LIMIT` | Default rate limit | `100/minute` |
 | `INGEST_RATE_LIMIT` | Event ingestion limit | `200/minute` |
 | `RETENTION_DAYS` | Auto-delete events older than N days | `30` |
-| `CLEANUP_INTERVAL_HOURS` | How often to run retention cleanup | `6` |
+| `CRON_SECRET` | Secures the `/cron/cleanup` endpoint | (random string) |
 
 #### Using Supabase
 
 1. Create a project at [supabase.com](https://supabase.com).
-2. Go to **Project Settings → Database → Connection string → URI**.
+2. Go to **Project Settings -> Database -> Connection string -> URI**.
 3. Replace `postgresql://` with `postgresql+asyncpg://` and set it as `DATABASE_URL`.
 
-### Start the backend
+### Start the backend (local)
 
 ```bash
 uvicorn main:app --reload --port 8000
@@ -70,7 +71,7 @@ Tables are auto-created on first run. API docs at <http://localhost:8000/docs>.
 
 ```bash
 cd frontend
-cp .env.local.example .env.local   # edit if backend isn't on :8000
+cp .env.example .env.local   # edit if backend isn't on :8000
 npm install
 npm run dev
 ```
@@ -156,16 +157,6 @@ Query params: `severity` (repeatable), `service`, `environment`, `search`, `page
 
 ### `GET /stats/timeseries?hours=24` — Hourly buckets for the time-series chart
 
-### `GET /stream` — Server-Sent Events stream
-
-Connect with `EventSource`. Emits JSON messages:
-
-```
-data: {"type": "connected"}
-data: {"type": "event", "data": { ...event... }}
-data: {"type": "ping"}
-```
-
 ### `DELETE /events/{id}` — Delete a single event (requires API key)
 
 ### `DELETE /events` — Clear all events (requires API key)
@@ -200,7 +191,7 @@ Webhooks fire on event creation with HMAC-SHA256 signature verification (`X-LogL
 
 | Feature | Detail |
 |---|---|
-| Real-time updates | New events appear instantly via SSE — no polling |
+| Auto-refresh | Dashboard polls for new events every 5 seconds |
 | Severity filter | Toggle info / warning / error / critical |
 | Environment filter | Filter by production, staging, development, testing |
 | Full-text search | Filter by message content |
@@ -214,17 +205,27 @@ Webhooks fire on event creation with HMAC-SHA256 signature verification (`X-LogL
 
 ---
 
-## Production deployment
+## Deployment
 
 | Component | Platform | URL |
 |-----------|----------|-----|
 | Frontend  | Vercel   | https://loglens-app.vercel.app |
-| Backend   | Render   | https://loglens-api.onrender.com |
+| Backend   | Vercel Serverless Functions | https://loglens-api.vercel.app |
 | Database  | Supabase | Postgres 17 (us-west-2) |
 
-### Backend (Render)
+Previously hosted on Render. Migrated to Vercel serverless functions for unified deployment.
 
-Configured via `render.yaml`. Set `DATABASE_URL`, `API_KEY`, and `ALLOWED_ORIGINS` as env vars.
+### Backend (Vercel)
+
+Root directory: `backend/`. Deployed as a Python serverless function via `@vercel/python`.
+
+Set these env vars in the Vercel dashboard:
+- `DATABASE_URL` — Supabase connection string
+- `API_KEY` — global API key
+- `ALLOWED_ORIGINS` — frontend URL(s)
+- `CRON_SECRET` — secures the scheduled cleanup endpoint
+
+Retention cleanup runs automatically via Vercel Cron (every 6 hours).
 
 ### Frontend (Vercel)
 

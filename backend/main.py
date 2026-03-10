@@ -2,7 +2,6 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from contextlib import asynccontextmanager
-import asyncio
 import os
 import time
 from dotenv import load_dotenv
@@ -17,7 +16,7 @@ from logging_config import setup_logging
 setup_logging()
 
 from database import init_db, check_db, AsyncSessionLocal
-from routers import events_router, stream_router, projects_router, webhooks_router
+from routers import events_router, projects_router, webhooks_router
 
 logger = structlog.get_logger("loglens")
 
@@ -25,37 +24,13 @@ RATE_LIMIT = os.getenv("RATE_LIMIT", "100/minute")
 
 limiter = Limiter(key_func=get_remote_address, default_limits=[RATE_LIMIT])
 
-
 RETENTION_DAYS = int(os.getenv("RETENTION_DAYS", "30"))
-CLEANUP_INTERVAL_HOURS = int(os.getenv("CLEANUP_INTERVAL_HOURS", "6"))
-
-
-async def _periodic_cleanup():
-    from sqlalchemy import delete, text
-    from models import Event
-
-    while True:
-        await asyncio.sleep(CLEANUP_INTERVAL_HOURS * 3600)
-        try:
-            async with AsyncSessionLocal() as session:
-                cutoff = text("NOW() - make_interval(days => :days)")
-                result = await session.execute(
-                    delete(Event).where(Event.timestamp < cutoff),
-                    {"days": RETENTION_DAYS},
-                )
-                await session.commit()
-                if result.rowcount > 0:
-                    logger.info("Retention cleanup: deleted %d expired events", result.rowcount)
-        except Exception as exc:
-            logger.warning("Retention cleanup failed: %s", exc)
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await init_db()
-    cleanup_task = asyncio.create_task(_periodic_cleanup())
     yield
-    cleanup_task.cancel()
 
 
 app = FastAPI(
@@ -116,7 +91,7 @@ class LogRequestsMiddleware:
             raise
 
         duration_ms = round((time.perf_counter() - start) * 1000, 1)
-        if request.url.path not in ("/health", "/stream"):
+        if request.url.path not in ("/health",):
             logger.info(
                 "request",
                 method=request.method,
@@ -130,9 +105,11 @@ app.add_middleware(LogRequestsMiddleware)
 
 
 app.include_router(events_router, tags=["Events"])
-app.include_router(stream_router, tags=["Stream"])
 app.include_router(projects_router)
 app.include_router(webhooks_router)
+
+
+CRON_SECRET = os.getenv("CRON_SECRET", "")
 
 
 @app.get("/health")
@@ -140,6 +117,28 @@ async def health():
     db_ok = await check_db()
     status = "ok" if db_ok else "degraded"
     return {"status": status, "service": "loglens-api", "database": "connected" if db_ok else "unreachable"}
+
+
+@app.get("/cron/cleanup")
+async def cron_cleanup(request: Request):
+    """Called by Vercel Cron to delete events older than RETENTION_DAYS."""
+    auth = request.headers.get("authorization", "")
+    if CRON_SECRET and auth != f"Bearer {CRON_SECRET}":
+        return JSONResponse(status_code=401, content={"detail": "Unauthorized"})
+
+    from sqlalchemy import delete, text
+    from models import Event
+
+    async with AsyncSessionLocal() as session:
+        cutoff = text("NOW() - make_interval(days => :days)")
+        result = await session.execute(
+            delete(Event).where(Event.timestamp < cutoff),
+            {"days": RETENTION_DAYS},
+        )
+        await session.commit()
+        deleted = result.rowcount
+        logger.info("Cron cleanup: deleted %d expired events", deleted)
+        return {"deleted": deleted, "retention_days": RETENTION_DAYS}
 
 
 @app.get("/")

@@ -6,15 +6,15 @@ from dotenv import load_dotenv
 load_dotenv()
 
 DATABASE_URL = os.getenv("DATABASE_URL", "postgresql+asyncpg://postgres:postgres@localhost:5432/loglens")
-POOL_SIZE = int(os.getenv("DB_POOL_SIZE", "5"))
-MAX_OVERFLOW = int(os.getenv("DB_MAX_OVERFLOW", "10"))
+POOL_SIZE = int(os.getenv("DB_POOL_SIZE", "1"))
+MAX_OVERFLOW = int(os.getenv("DB_MAX_OVERFLOW", "2"))
 
 engine = create_async_engine(
     DATABASE_URL,
     pool_size=POOL_SIZE,
     max_overflow=MAX_OVERFLOW,
     pool_pre_ping=True,
-    pool_recycle=300,
+    pool_recycle=60,
     echo=False,
 )
 

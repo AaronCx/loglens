@@ -13,7 +13,6 @@ from slowapi.util import get_remote_address
 
 from database import get_db
 from models import Event, Severity, ApiKey
-from .stream import broadcast_event
 from .webhooks import fire_webhooks
 
 router = APIRouter()
@@ -151,7 +150,6 @@ async def create_event(
     event_data = EventResponse.from_orm(db_event)
     event_dict = event_data.model_dump(mode="json")
     event_dict["project_id"] = str(project_id) if project_id else None
-    asyncio.create_task(broadcast_event(event_dict))
     asyncio.create_task(fire_webhooks(event_dict, db))
 
     return event_data
