@@ -5,7 +5,7 @@ A real-time error logging and monitoring platform.
 **Live:** [Dashboard](https://loglens-app.vercel.app) | [API](https://loglens-api.vercel.app/docs) | [Health](https://loglens-api.vercel.app/health)
 
 - **Backend** — FastAPI + SQLAlchemy + Postgres/Supabase, deployed as Vercel Serverless Functions
-- **Frontend** — Next.js 16, Tailwind CSS, Recharts, auto-refreshing dashboard
+- **Frontend** — Next.js 16, Tailwind CSS, Recharts, auto-refreshing dashboard (Bun)
 - **SDK** — `loglens-sdk` Python package with a `capture()` API
 
 ```
@@ -23,6 +23,7 @@ loglens/
 |---|---|
 | Python | >= 3.11 |
 | Node.js | >= 18 |
+| Bun | >= 1.0 (frontend) |
 | PostgreSQL | >= 14 (or Supabase project) |
 | Vercel CLI | `npm i -g vercel` |
 
@@ -72,8 +73,8 @@ Tables are auto-created on first run. API docs at <http://localhost:8000/docs>.
 ```bash
 cd frontend
 cp .env.example .env.local   # edit if backend isn't on :8000
-npm install
-npm run dev
+bun install
+bun run dev
 ```
 
 Open <http://localhost:3000>.
