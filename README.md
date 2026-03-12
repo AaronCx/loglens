@@ -5,7 +5,8 @@ A real-time error logging and monitoring platform.
 **Live:** [Dashboard](https://loglens-app.vercel.app) | [API](https://loglens-api.vercel.app/docs) | [Health](https://loglens-api.vercel.app/health)
 
 - **Backend** — FastAPI + SQLAlchemy + Postgres/Supabase, deployed as Vercel Serverless Functions
-- **Frontend** — Next.js 16, Tailwind CSS, Recharts, auto-refreshing dashboard (Bun)
+- **Frontend** — Next.js 16, Tailwind CSS, Recharts, auto-refreshing dashboard
+- **Runtime** — Bun (frontend package manager & dev server)
 - **SDK** — `loglens-sdk` Python package with a `capture()` API
 
 ```
