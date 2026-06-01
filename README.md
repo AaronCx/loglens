@@ -238,3 +238,5 @@ Root directory: `frontend/`. Set `NEXT_PUBLIC_API_URL` to the backend URL.
 ## License
 
 MIT
+
+<!-- lastgate-refresh -->
