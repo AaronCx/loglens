@@ -1,9 +1,12 @@
 import hashlib
 import hmac
+import ipaddress
 import json
 import logging
+import socket
 from datetime import datetime
 from typing import Optional
+from urllib.parse import urlparse
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException
@@ -13,12 +16,46 @@ from sqlalchemy.ext.asyncio import AsyncSession
 import uuid
 import secrets
 
+import database
+from auth import verify_api_key
 from database import get_db
 from models import Webhook
 
 logger = logging.getLogger("loglens.webhooks")
 
-router = APIRouter(prefix="/webhooks", tags=["Webhooks"])
+router = APIRouter(
+    prefix="/webhooks",
+    tags=["Webhooks"],
+    dependencies=[Depends(verify_api_key)],
+)
+
+
+def validate_webhook_url(url: str) -> None:
+    """Reject non-http(s) URLs and targets resolving to internal addresses (SSRF)."""
+    parsed = urlparse(url)
+    if parsed.scheme not in ("http", "https"):
+        raise HTTPException(status_code=422, detail="Webhook URL must use http or https")
+    hostname = parsed.hostname
+    if not hostname:
+        raise HTTPException(status_code=422, detail="Webhook URL must include a hostname")
+    try:
+        addr_infos = socket.getaddrinfo(hostname, None)
+    except socket.gaierror:
+        raise HTTPException(status_code=422, detail="Webhook URL hostname could not be resolved")
+    for info in addr_infos:
+        ip = ipaddress.ip_address(info[4][0])
+        if (
+            ip.is_private
+            or ip.is_loopback
+            or ip.is_link_local
+            or ip.is_multicast
+            or ip.is_reserved
+            or ip.is_unspecified
+        ):
+            raise HTTPException(
+                status_code=422,
+                detail="Webhook URL resolves to a disallowed internal address",
+            )
 
 
 class WebhookCreate(BaseModel):
@@ -38,9 +75,14 @@ class WebhookResponse(BaseModel):
     services: Optional[list[str]]
     is_active: bool
     created_at: datetime
-    secret: Optional[str]
 
     model_config = {"from_attributes": True}
+
+
+class WebhookCreateResponse(WebhookResponse):
+    """Returned only on creation: includes the HMAC secret exactly once."""
+
+    secret: Optional[str]
 
 
 class WebhookUpdate(BaseModel):
@@ -51,11 +93,12 @@ class WebhookUpdate(BaseModel):
     is_active: Optional[bool] = None
 
 
-@router.post("", response_model=WebhookResponse, status_code=201)
+@router.post("", response_model=WebhookCreateResponse, status_code=201)
 async def create_webhook(
     body: WebhookCreate,
     db: AsyncSession = Depends(get_db),
 ):
+    validate_webhook_url(body.url)
     webhook = Webhook(
         id=uuid.uuid4(),
         url=body.url,
@@ -88,6 +131,9 @@ async def update_webhook(
     if not webhook:
         raise HTTPException(status_code=404, detail="Webhook not found")
 
+    if body.url is not None:
+        validate_webhook_url(body.url)
+
     for field, value in body.model_dump(exclude_unset=True).items():
         setattr(webhook, field, value)
 
@@ -108,15 +154,20 @@ async def delete_webhook(
     await db.delete(webhook)
 
 
-async def fire_webhooks(event_data: dict, db: AsyncSession) -> None:
-    """Send webhook notifications for a new event. Called after event creation."""
+async def fire_webhooks(event_data: dict) -> None:
+    """Send webhook notifications for a new event. Called after event creation.
+
+    Runs as a background task, so it opens its own session instead of
+    sharing the request-scoped one (which may already be closed/in use).
+    """
     severity = event_data.get("severity", "")
     service = event_data.get("service", "")
     project_id = event_data.get("project_id")
 
-    query = select(Webhook).where(Webhook.is_active == True)
-    result = await db.execute(query)
-    webhooks = result.scalars().all()
+    async with database.AsyncSessionLocal() as db:
+        query = select(Webhook).where(Webhook.is_active == True)
+        result = await db.execute(query)
+        webhooks = result.scalars().all()
 
     async with httpx.AsyncClient(timeout=10.0) as client:
         for wh in webhooks:

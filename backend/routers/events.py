@@ -11,14 +11,13 @@ import asyncio
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 
+from auth import API_KEY, verify_api_key
 from database import get_db
 from models import Event, Severity, ApiKey
 from .webhooks import fire_webhooks
 
 router = APIRouter()
 limiter = Limiter(key_func=get_remote_address)
-
-API_KEY = os.getenv("API_KEY", "dev-secret-key")
 
 
 async def resolve_api_key(
@@ -38,13 +37,6 @@ async def resolve_api_key(
         return x_api_key, api_key.project_id
 
     raise HTTPException(status_code=401, detail="Invalid API key")
-
-
-def verify_api_key(x_api_key: str = Header(..., alias="X-API-Key")):
-    """Simple API key check for non-project-scoped endpoints."""
-    if x_api_key != API_KEY:
-        raise HTTPException(status_code=401, detail="Invalid API key")
-    return x_api_key
 
 
 MAX_METADATA_SIZE = 65_536  # 64 KB
@@ -150,7 +142,7 @@ async def create_event(
     event_data = EventResponse.from_orm(db_event)
     event_dict = event_data.model_dump(mode="json")
     event_dict["project_id"] = str(project_id) if project_id else None
-    asyncio.create_task(fire_webhooks(event_dict, db))
+    asyncio.create_task(fire_webhooks(event_dict))
 
     return event_data
 
@@ -164,6 +156,7 @@ async def list_events(
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=200),
     db: AsyncSession = Depends(get_db),
+    _: str = Depends(verify_api_key),
 ):
     query = select(Event).order_by(desc(Event.timestamp))
     count_query = select(func.count(Event.id))
@@ -198,7 +191,11 @@ async def list_events(
 
 
 @router.get("/events/{event_id}", response_model=EventResponse)
-async def get_event(event_id: uuid.UUID, db: AsyncSession = Depends(get_db)):
+async def get_event(
+    event_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    _: str = Depends(verify_api_key),
+):
     result = await db.execute(select(Event).where(Event.id == event_id))
     event = result.scalar_one_or_none()
     if not event:
@@ -207,7 +204,10 @@ async def get_event(event_id: uuid.UUID, db: AsyncSession = Depends(get_db)):
 
 
 @router.get("/stats", response_model=StatsResponse)
-async def get_stats(db: AsyncSession = Depends(get_db)):
+async def get_stats(
+    db: AsyncSession = Depends(get_db),
+    _: str = Depends(verify_api_key),
+):
     total_result = await db.execute(select(func.count(Event.id)))
     total = total_result.scalar_one()
 
@@ -231,6 +231,7 @@ async def get_stats(db: AsyncSession = Depends(get_db)):
 async def get_timeseries(
     hours: int = Query(24, ge=1, le=168),
     db: AsyncSession = Depends(get_db),
+    _: str = Depends(verify_api_key),
 ):
     from sqlalchemy import text
 
@@ -263,6 +264,23 @@ async def get_timeseries(
     ]
 
 
+RETENTION_DAYS = int(os.getenv("RETENTION_DAYS", "30"))
+
+
+# NOTE: must be registered before DELETE /events/{event_id}, otherwise the
+# parameterized route shadows it ("expired" fails UUID parsing -> 422).
+@router.delete("/events/expired", status_code=200)
+async def cleanup_expired_events(
+    db: AsyncSession = Depends(get_db),
+    _: str = Depends(verify_api_key),
+):
+    from sqlalchemy import delete, text
+    cutoff = text(f"NOW() - make_interval(days => :days)")
+    stmt = delete(Event).where(Event.timestamp < cutoff)
+    result = await db.execute(stmt, {"days": RETENTION_DAYS})
+    return {"deleted": result.rowcount, "retention_days": RETENTION_DAYS}
+
+
 @router.delete("/events/{event_id}", status_code=204)
 async def delete_event(
     event_id: uuid.UUID,
@@ -274,21 +292,6 @@ async def delete_event(
     if not event:
         raise HTTPException(status_code=404, detail="Event not found")
     await db.delete(event)
-
-
-RETENTION_DAYS = int(os.getenv("RETENTION_DAYS", "30"))
-
-
-@router.delete("/events/expired", status_code=200)
-async def cleanup_expired_events(
-    db: AsyncSession = Depends(get_db),
-    _: str = Depends(verify_api_key),
-):
-    from sqlalchemy import delete, text
-    cutoff = text(f"NOW() - make_interval(days => :days)")
-    stmt = delete(Event).where(Event.timestamp < cutoff)
-    result = await db.execute(stmt, {"days": RETENTION_DAYS})
-    return {"deleted": result.rowcount, "retention_days": RETENTION_DAYS}
 
 
 @router.delete("/events", status_code=204)

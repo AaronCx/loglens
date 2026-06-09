@@ -115,7 +115,7 @@ async def health():
 async def cron_cleanup(request: Request):
     """Called by Vercel Cron to delete events older than RETENTION_DAYS."""
     auth = request.headers.get("authorization", "")
-    if CRON_SECRET and auth != f"Bearer {CRON_SECRET}":
+    if not CRON_SECRET or auth != f"Bearer {CRON_SECRET}":
         return JSONResponse(status_code=401, content={"detail": "Unauthorized"})
 
     from sqlalchemy import delete, text

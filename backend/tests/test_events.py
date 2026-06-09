@@ -98,7 +98,7 @@ async def test_list_events():
             json={**VALID_EVENT, "severity": "critical", "service": "other-svc"},
             headers=API_HEADERS,
         )
-        resp = await client.get("/events")
+        resp = await client.get("/events", headers=API_HEADERS)
     assert resp.status_code == 200
     data = resp.json()
     assert "events" in data
@@ -116,7 +116,7 @@ async def test_list_events_filter_severity():
             json={**VALID_EVENT, "severity": "info"},
             headers=API_HEADERS,
         )
-        resp = await client.get("/events?severity=info")
+        resp = await client.get("/events?severity=info", headers=API_HEADERS)
     assert resp.status_code == 200
     data = resp.json()
     for event in data["events"]:
@@ -131,7 +131,7 @@ async def test_list_events_search():
             json={**VALID_EVENT, "message": "UniqueSearchTerm42"},
             headers=API_HEADERS,
         )
-        resp = await client.get("/events?search=UniqueSearchTerm42")
+        resp = await client.get("/events?search=UniqueSearchTerm42", headers=API_HEADERS)
     assert resp.status_code == 200
     data = resp.json()
     assert data["total"] >= 1
@@ -141,7 +141,7 @@ async def test_list_events_search():
 @pytest.mark.anyio
 async def test_list_events_pagination():
     async with make_client() as client:
-        resp = await client.get("/events?page=1&page_size=2")
+        resp = await client.get("/events?page=1&page_size=2", headers=API_HEADERS)
     assert resp.status_code == 200
     data = resp.json()
     assert data["page_size"] == 2
@@ -153,7 +153,7 @@ async def test_get_event_by_id():
     async with make_client() as client:
         create_resp = await client.post("/events", json=VALID_EVENT, headers=API_HEADERS)
         event_id = create_resp.json()["id"]
-        resp = await client.get(f"/events/{event_id}")
+        resp = await client.get(f"/events/{event_id}", headers=API_HEADERS)
     assert resp.status_code == 200
     assert resp.json()["id"] == event_id
 
@@ -161,7 +161,7 @@ async def test_get_event_by_id():
 @pytest.mark.anyio
 async def test_get_event_not_found():
     async with make_client() as client:
-        resp = await client.get("/events/00000000-0000-0000-0000-000000000000")
+        resp = await client.get("/events/00000000-0000-0000-0000-000000000000", headers=API_HEADERS)
     assert resp.status_code == 404
 
 
@@ -169,7 +169,7 @@ async def test_get_event_not_found():
 async def test_get_stats():
     async with make_client() as client:
         await client.post("/events", json=VALID_EVENT, headers=API_HEADERS)
-        resp = await client.get("/stats")
+        resp = await client.get("/stats", headers=API_HEADERS)
     assert resp.status_code == 200
     data = resp.json()
     assert "total" in data
@@ -182,7 +182,7 @@ async def test_get_stats():
 async def test_get_timeseries():
     async with make_client() as client:
         await client.post("/events", json=VALID_EVENT, headers=API_HEADERS)
-        resp = await client.get("/stats/timeseries?hours=24")
+        resp = await client.get("/stats/timeseries?hours=24", headers=API_HEADERS)
     assert resp.status_code == 200
     data = resp.json()
     assert isinstance(data, list)
@@ -191,7 +191,7 @@ async def test_get_timeseries():
 @pytest.mark.anyio
 async def test_get_timeseries_invalid_hours():
     async with make_client() as client:
-        resp = await client.get("/stats/timeseries?hours=0")
+        resp = await client.get("/stats/timeseries?hours=0", headers=API_HEADERS)
     assert resp.status_code == 422
 
 

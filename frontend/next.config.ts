@@ -1,16 +1,7 @@
 import type { NextConfig } from "next";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
-
-const nextConfig: NextConfig = {
-  async rewrites() {
-    return [
-      {
-        source: "/api/:path*",
-        destination: `${API_URL}/:path*`,
-      },
-    ];
-  },
-};
+// Backend access goes through app/api/[...path]/route.ts, which attaches the
+// server-only API key. The previous rewrite proxied requests unauthenticated.
+const nextConfig: NextConfig = {};
 
 export default nextConfig;
