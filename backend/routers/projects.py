@@ -7,10 +7,15 @@ from datetime import datetime
 import uuid
 import secrets
 
+from auth import verify_api_key
 from database import get_db
 from models import Project, ApiKey
 
-router = APIRouter(prefix="/projects", tags=["Projects"])
+router = APIRouter(
+    prefix="/projects",
+    tags=["Projects"],
+    dependencies=[Depends(verify_api_key)],
+)
 
 
 class ProjectCreate(BaseModel):

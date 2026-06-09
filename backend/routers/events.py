@@ -11,14 +11,13 @@ import asyncio
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 
+from auth import API_KEY, verify_api_key
 from database import get_db
 from models import Event, Severity, ApiKey
 from .webhooks import fire_webhooks
 
 router = APIRouter()
 limiter = Limiter(key_func=get_remote_address)
-
-API_KEY = os.getenv("API_KEY", "dev-secret-key")
 
 
 async def resolve_api_key(
@@ -38,13 +37,6 @@ async def resolve_api_key(
         return x_api_key, api_key.project_id
 
     raise HTTPException(status_code=401, detail="Invalid API key")
-
-
-def verify_api_key(x_api_key: str = Header(..., alias="X-API-Key")):
-    """Simple API key check for non-project-scoped endpoints."""
-    if x_api_key != API_KEY:
-        raise HTTPException(status_code=401, detail="Invalid API key")
-    return x_api_key
 
 
 MAX_METADATA_SIZE = 65_536  # 64 KB
