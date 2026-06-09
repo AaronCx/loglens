@@ -156,6 +156,7 @@ async def list_events(
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=200),
     db: AsyncSession = Depends(get_db),
+    _: str = Depends(verify_api_key),
 ):
     query = select(Event).order_by(desc(Event.timestamp))
     count_query = select(func.count(Event.id))
@@ -190,7 +191,11 @@ async def list_events(
 
 
 @router.get("/events/{event_id}", response_model=EventResponse)
-async def get_event(event_id: uuid.UUID, db: AsyncSession = Depends(get_db)):
+async def get_event(
+    event_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    _: str = Depends(verify_api_key),
+):
     result = await db.execute(select(Event).where(Event.id == event_id))
     event = result.scalar_one_or_none()
     if not event:
@@ -199,7 +204,10 @@ async def get_event(event_id: uuid.UUID, db: AsyncSession = Depends(get_db)):
 
 
 @router.get("/stats", response_model=StatsResponse)
-async def get_stats(db: AsyncSession = Depends(get_db)):
+async def get_stats(
+    db: AsyncSession = Depends(get_db),
+    _: str = Depends(verify_api_key),
+):
     total_result = await db.execute(select(func.count(Event.id)))
     total = total_result.scalar_one()
 
@@ -223,6 +231,7 @@ async def get_stats(db: AsyncSession = Depends(get_db)):
 async def get_timeseries(
     hours: int = Query(24, ge=1, le=168),
     db: AsyncSession = Depends(get_db),
+    _: str = Depends(verify_api_key),
 ):
     from sqlalchemy import text
 
