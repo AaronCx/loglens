@@ -264,6 +264,23 @@ async def get_timeseries(
     ]
 
 
+RETENTION_DAYS = int(os.getenv("RETENTION_DAYS", "30"))
+
+
+# NOTE: must be registered before DELETE /events/{event_id}, otherwise the
+# parameterized route shadows it ("expired" fails UUID parsing -> 422).
+@router.delete("/events/expired", status_code=200)
+async def cleanup_expired_events(
+    db: AsyncSession = Depends(get_db),
+    _: str = Depends(verify_api_key),
+):
+    from sqlalchemy import delete, text
+    cutoff = text(f"NOW() - make_interval(days => :days)")
+    stmt = delete(Event).where(Event.timestamp < cutoff)
+    result = await db.execute(stmt, {"days": RETENTION_DAYS})
+    return {"deleted": result.rowcount, "retention_days": RETENTION_DAYS}
+
+
 @router.delete("/events/{event_id}", status_code=204)
 async def delete_event(
     event_id: uuid.UUID,
@@ -275,21 +292,6 @@ async def delete_event(
     if not event:
         raise HTTPException(status_code=404, detail="Event not found")
     await db.delete(event)
-
-
-RETENTION_DAYS = int(os.getenv("RETENTION_DAYS", "30"))
-
-
-@router.delete("/events/expired", status_code=200)
-async def cleanup_expired_events(
-    db: AsyncSession = Depends(get_db),
-    _: str = Depends(verify_api_key),
-):
-    from sqlalchemy import delete, text
-    cutoff = text(f"NOW() - make_interval(days => :days)")
-    stmt = delete(Event).where(Event.timestamp < cutoff)
-    result = await db.execute(stmt, {"days": RETENTION_DAYS})
-    return {"deleted": result.rowcount, "retention_days": RETENTION_DAYS}
 
 
 @router.delete("/events", status_code=204)
