@@ -16,6 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 import uuid
 import secrets
 
+import database
 from auth import verify_api_key
 from database import get_db
 from models import Webhook
@@ -153,15 +154,20 @@ async def delete_webhook(
     await db.delete(webhook)
 
 
-async def fire_webhooks(event_data: dict, db: AsyncSession) -> None:
-    """Send webhook notifications for a new event. Called after event creation."""
+async def fire_webhooks(event_data: dict) -> None:
+    """Send webhook notifications for a new event. Called after event creation.
+
+    Runs as a background task, so it opens its own session instead of
+    sharing the request-scoped one (which may already be closed/in use).
+    """
     severity = event_data.get("severity", "")
     service = event_data.get("service", "")
     project_id = event_data.get("project_id")
 
-    query = select(Webhook).where(Webhook.is_active == True)
-    result = await db.execute(query)
-    webhooks = result.scalars().all()
+    async with database.AsyncSessionLocal() as db:
+        query = select(Webhook).where(Webhook.is_active == True)
+        result = await db.execute(query)
+        webhooks = result.scalars().all()
 
     async with httpx.AsyncClient(timeout=10.0) as client:
         for wh in webhooks:
